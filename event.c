@@ -1,33 +1,28 @@
 #include "event.h"
 
+#define EVENT_POOL_MAX 1000
+
 static int epfd = -1;
 static int nev = 0;
 static struct epoll_event *evs = NULL;
 
-static struct event *event_pool = NULL;
-
 static int sockbufsize = 32*1024;
 
-int event_init() {
+int epoll_init() {
   nev = 0;
   evs = NULL;
   epfd = epoll_create(256);
   return epfd;
 }
 
-struct event *event_new() {
-  struct event *e = NULL;
-
-  if (event_pool) {
-    LIST_POP(event_pool, e);
-  } else {
-    e = malloc(sizeof(struct event));
-  }
-
-  e->next = NULL;
-
-  return e;
+static void event_init(struct event *e) {
 }
+static void event_deinit(struct event *e) {
+  close(e->fd);
+  e->fd = -1;
+  nev--;
+}
+IMPLEMENT_POOL(event, 1000);
 
 int event_add(struct event *e) {
   struct epoll_event ev;
@@ -49,32 +44,38 @@ int event_add(struct event *e) {
   return 0;
 }
 
-int event_del(struct event *e) {
-  close(e->fd);
-  e->fd = -1;
-  nev--;
-  LIST_PREPEND(event_pool, e);
-  return epoll_ctl(epfd, EPOLL_CTL_DEL, e->fd, NULL);
+int event_mod(struct event *e, uint32_t events, event_handler handler, void *ctx) {
+  struct epoll_event ev;
+
+  e->handler = handler;
+  e->ctx = ctx;
+
+  ev.events = events;
+  ev.data.fd = e->fd;
+  ev.data.ptr = e;
+
+  return epoll_ctl(epfd, EPOLL_CTL_MOD, e->fd, &ev);
 }
 
-int process_event(int tv) {
+struct event *event_new_add(int fd, uint32_t events, event_handler handler, void *ctx) {
+  struct event *e = event_new();
+  if (!e) return NULL;
+  e->fd = fd;
+  e->ctx = ctx;
+  e->events = events;
+  e->handler = handler;
+  event_add(e);
+  return e;
+}
+
+
+int process_event(int t) {
   int i, n;
-  n = epoll_wait(epfd, evs, nev, tv);
+  n = epoll_wait(epfd, evs, nev, t);
   for(i = 0; i < n; i++) {
     struct event *e = evs[i].data.ptr;
-    if (e->handler(e, evs[i].events)) {
-      //kill tcp
-    }
+    e->handler(e, evs[i].events);
   }
   return n;
-}
-
-void event_del_all() {
-  struct event *e = event_pool;
-  while (e) {
-    event_pool = e->next;
-    free(e);
-    e = event_pool;
-  }
 }
 

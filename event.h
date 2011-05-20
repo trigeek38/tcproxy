@@ -3,21 +3,29 @@
 
 #include "util.h"
 
+struct event;
+
+typedef int (*event_handler)(struct event *ev, uint32_t events);
+
 struct event {
   int fd;
   uint32_t events;
-  int (*handler)(struct event *ev, uint32_t events);
+  event_handler handler;
   void *ctx;
 
   struct event *next;
 };
 
-int event_init();
+int epoll_init();
+
+DECLARE_POOL(event);
+
 int event_add(struct event *e);
-int event_del(struct event *e);
+int event_mod(struct event *e, uint32_t events, event_handler handler, void *ctx);
+
+struct event *event_new_add(int fd, uint32_t events, event_handler handler, void *ctx);
+
 int process_event(int tv);
 
-struct event *event_new();
-void event_del_all();
 
 #endif /* _EVENT_H_ */
