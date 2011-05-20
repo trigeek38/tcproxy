@@ -17,21 +17,7 @@
 #include <stdarg.h>
 #include <unistd.h>
 
-#define FATAL(s) do {\
-  fprintf(stderr, "[%s]: ", s);\
-  perror("");\
-  exit(EXIT_FAILURE);\
-}while(0)
-
-#define LIST_PREPEND(_head, _item) do {\
-  _item->next = _head;\
-  _head = _item;\
-}while(0)
-
-#define LIST_POP(_head, _item) do {\
-  _item = _head;\
-  _head = _head->next;\
-}while(0)
+#include "pool.h"
 
 #define RW_BUF_SIZE 32*1024
 
@@ -39,6 +25,18 @@
 #define LOG_ERROR 1
 #define LOG_NOTICE 2
 #define LOG_DEBUG 3
+
+#define log_fatal(s...) do {\
+  log_err(LOG_FATAL, s);\
+  exit(EXIT_FAILURE);\
+}while(0)
+
+#define print_fatal(s...) do {\
+  fprintf(stderr, "fatal: ");\
+  fprintf(stderr, s);\
+  fprintf(stderr, "\n");\
+  exit(EXIT_FAILURE);\
+}while(0)
 
 struct rwbuffer {
   char data[RW_BUF_SIZE];
@@ -53,16 +51,13 @@ struct rwbuffer {
 };
 
 
-struct rwbuffer *rwb_new();
-void rwb_del(struct rwbuffer *buf);
+DECLARE_POOL(rwbuffer);
 
-char *rwb_read_buf(struct rwbuffer *buf);
-char *rwb_write_buf(struct rwbuffer *buf);
+char *rwbuffer_read_buf(struct rwbuffer *buf);
+char *rwbuffer_write_buf(struct rwbuffer *buf);
 
-void rwb_commit_read(struct rwbuffer *buf, int size);
-void rwb_commit_write(struct rwbuffer *buf, int size);
-
-void rwb_del_all();
+void rwbuffer_commit_read(struct rwbuffer *buf, int size);
+void rwbuffer_commit_write(struct rwbuffer *buf, int size);
 
 void update_time();
 
